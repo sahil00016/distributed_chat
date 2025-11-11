@@ -1,294 +1,213 @@
 # Distributed Chat Application with File Sharing
 
-Full-stack distributed chat system with **Python (Backend)** and **Flutter (Frontend)** featuring real-time messaging, file sharing, and **Supabase integration** for user management and private messaging.
+Full-stack distributed chat system with a **Python TCP socket backend**, a **Flutter client**, and **Supabase** for persistent storage. Chat in real time, share documents/images, see unread counts, and manage chats across multiple devices.
 
-## 🌟 Features
+---
 
-### Server (Python)
+## ✨ Highlights
+
+### Backend (Python)
 - Multi-client TCP socket server (100 concurrent clients)
-- Real-time message broadcasting
-- Binary file transfer
-- Thread-safe operations
-- Support for group and private messaging
+- Real-time JSON messaging & binary file streaming
+- Works locally or when deployed to Railway/other VPS providers
+- Environment-driven host/port configuration (`HOST`, `PORT`)
 
 ### Client (Flutter)
-- **Beautiful Splash Screen** with animations
-- **Username Registration** with Supabase
-- **Persistent Authentication** (login once)
-- **Chat List** showing:
-  - Group chat (all users)
-  - Private chats (1-on-1)
-- Beautiful Material Design 3 UI
-- Cross-platform (Android, iOS, Windows, Web)
-- Real-time chat interface
-- File sharing with picker
-- Online/offline status
-- Smart message grouping
+- Animated splash screen and one-time username registration
+- Supabase-backed authentication with offline persistence
+- Chat list with **group** & **private** conversations
+- Unread badges, online presence, smart bubble grouping
+- Inline image previews, document cards, and full-screen viewer
+- **Multi-select delete** for your own messages (group/private)
+- Cross-platform (Android, iOS, Windows, web)
 
-### Database (Supabase)
-- User registration and management
-- Unique username validation
-- Online/offline status tracking
-- Private message storage (coming soon)
-- Real-time updates
+### Supabase (PostgreSQL + Storage)
+- `chat_users`, `group_messages`, `private_messages` tables
+- Policies for inserts/selects/updates/deletes and unread tracking
+- Supabase Storage bucket for shared files (images/docs)
+- Functions to compute unread counts per user/conversation
 
-## Tech Stack
+---
 
-- **Backend:** Python 3.7+ (TCP sockets)
-- **Frontend:** Flutter/Dart
-- **Database:** Supabase (PostgreSQL)
-- **Protocol:** TCP/IP with JSON
-- **File Transfer:** Binary over TCP
-- **Auth:** Persistent local storage
+## 🗂  Tech Stack
 
-## Quick Start
+| Layer          | Technology |
+|----------------|------------|
+| Backend        | Python 3.x (sockets, threading)
+| Client         | Flutter / Dart with Material Design 3
+| Database       | Supabase (PostgreSQL + Storage)
+| Transport      | TCP/IP (JSON + binary streams)
+| Auth/Storage   | Supabase + shared preferences
 
-### 1. Setup Supabase
+---
 
-**Important:** Set up Supabase first before running the app!
+## 🚀 Quick Start
 
-Follow the complete guide: [SUPABASE_SETUP.md](SUPABASE_SETUP.md)
+### 1. Set up Supabase
 
-**Quick Summary:**
-1. Create Supabase project at [supabase.com](https://supabase.com)
-2. Run the SQL schema (provided in guide)
-3. Copy your Project URL and anon key
-4. Update `client_flutter/lib/config/supabase_config.dart`
+1. Create a project at [supabase.com](https://supabase.com)
+2. Run the SQL from [`SUPABASE_UNREAD_AND_GROUPS.sql`](SUPABASE_UNREAD_AND_GROUPS.sql) (includes tables, policies, unread helpers, storage rules)
+3. Create a public bucket `chat-files`
+4. Copy the **Project URL** and **anon key**
+5. Update `client_flutter/lib/config/supabase_config.dart`
 
-### 2. Start Server
-```bash
-cd server
-python server.py
+> Need a guided setup? See [`SUPABASE_SETUP_V2.md`](SUPABASE_SETUP_V2.md).
+
+### 2. Deploy the Socket Server (Railway example)
+
+1. Connect the repo in [Railway](https://railway.app/)
+2. In the service settings set:
+   - **Root Directory:** `server`
+   - **Build Command:** `pip install -r requirements.txt`
+   - **Start Command:** `python server.py`
+3. Deploy and note the log message `Listening on 0.0.0.0:<port>`
+4. Enable **TCP Proxy** and map the internal port (e.g. `8080`)
+5. Railway will show a public endpoint such as `maglev.proxy.rlwy.net:50159`
+
+> Any TCP-friendly host works (VPS, Fly.io, Render private service). Just expose the socket port.
+
+### 3. Configure the Flutter Client
+
+Update `client_flutter/lib/config/app_config.dart`:
+```dart
+class AppConfig {
+  static const String defaultHost = 'maglev.proxy.rlwy.net';
+  static const int defaultPort = 50159;
+  static const String appName = 'Distributed Chat';
+  static const int minUsernameLength = 3;
+}
 ```
+(Replace host/port with your deployment.)
 
-### 3. Run Client
+### 4. Build & Share the APK
 
-**First time setup:**
 ```bash
 cd client_flutter
+flutter clean
 flutter pub get
-```
-
-**Configure server IP** in `client_flutter/lib/config/app_config.dart`:
-```dart
-static const String defaultHost = '192.168.1.44'; // Your PC IP
-```
-
-**Run on device:**
-```bash
-flutter run -d <device>
-```
-
-**Build APK:**
-```bash
 flutter build apk --release
 ```
 
-### 4. Windows Firewall (Required for mobile)
-Run as Administrator:
-```powershell
-netsh advfirewall firewall add rule name="Python Chat Server" dir=in action=allow protocol=TCP localport=5555
+APK path: `client_flutter/build/app/outputs/flutter-apk/app-release.apk`
+
+Share the APK (WhatsApp, Drive, etc.). Users must allow “Install from unknown sources”.
+
+### 5. Run on Desktop or Emulator
+
+```bash
+flutter run -d <device>
+```
+(
+Make sure the socket host is reachable; for local testing use `127.0.0.1`/`localhost`.)
+
+---
+
+## 📱 App Flow
+
+```
+Splash Screen → Username Setup → Chat List
+                                ├─ Group Chat (all users)
+                                └─ Private Chats (individual users)
 ```
 
-## App Flow
+- **Splash Screen** – animation + auto-login check
+- **Username Setup** – Supabase uniqueness, stored locally
+- **Chat List** – group + private cards, unread counters, pull-to-refresh, logout
+- **Chat Screen** – inline media, message selection, multi-delete, unread updates
 
-```
-Splash Screen (2s)
-        ↓
-Username Setup (Register with Supabase)
-        ↓
-Chat List Screen
-   ├── Group Chat → Connect to server → Group chat with all users
-   └── User List → Select user → Private chat with that user
-```
+---
 
-## Features in Detail
+## 🔐 Message Deletion & Unread Tracking
+- Long-press your own message, multi-select, tap delete (deletes in Supabase & UI)
+- Supabase functions (`get_unread_private_count`, `get_unread_group_count`) power unread badges
+- Policies in `SUPABASE_UNREAD_AND_GROUPS.sql` allow deletes/reads/inserts for public access
 
-### 1. **Splash Screen** 
-- Beautiful animated intro
-- Checks if user already registered
-- Auto-navigates to correct screen
+---
 
-### 2. **Username Registration**
-- Register unique username with Supabase
-- Validation (3-20 chars, alphanumeric + underscore)
-- One-time setup (stored locally)
-- Username uniqueness verified
-
-### 3. **Chat List**
-- **Group Chat Card**: Chat with all registered users
-- **Private Chats**: List of all users from Supabase
-- Online/offline indicators
-- Pull to refresh user list
-- Logout option
-
-### 4. **Group Chat**
-- Real-time messaging with all users
-- File sharing with everyone
-- See all online members
-- Smart message grouping
-
-### 5. **Private Chat** 
-- 1-on-1 messaging with any user
-- Dedicated chat window per user
-- File sharing in private chat
-- WhatsApp-like interface
-
-## Project Structure
+## 📁 Project Structure
 
 ```
 DPC_PROJECT/
 ├── server/
-│   ├── server.py          # TCP server with threading
-│   └── config.py          # Server configuration
+│   ├── server.py          # Threaded TCP server
+│   └── config.py          # HOST/PORT via env vars
 ├── client_flutter/
 │   ├── lib/
-│   │   ├── config/
-│   │   │   ├── app_config.dart      # App settings
-│   │   │   └── supabase_config.dart # Supabase credentials
-│   │   ├── models/        # Data models
-│   │   ├── services/      # Socket service
-│   │   ├── screens/
-│   │   │   ├── splash_screen.dart       # Splash screen
-│   │   │   ├── username_setup_screen.dart # Registration
-│   │   │   ├── chat_list_screen.dart    # Home screen
-│   │   │   ├── chat_screen.dart         # Chat interface
-│   │   │   └── connect_screen.dart      # Legacy
-│   │   └── widgets/       # Reusable widgets
+│   │   ├── config/        # app + Supabase config
+│   │   ├── models/        # Message, User, Group
+│   │   ├── services/      # Socket + Supabase helpers
+│   │   ├── screens/       # UI screens
+│   │   └── widgets/       # Message bubbles, drawers, etc.
 │   └── pubspec.yaml
 ├── README.md
-└── SUPABASE_SETUP.md      # Complete Supabase guide
+├── SUPABASE_SETUP_V2.md
+└── SUPABASE_UNREAD_AND_GROUPS.sql
 ```
-
-## How It Works
-
-### Architecture
-```
-Flutter App
-     ↓ (Supabase)
-  User Management
-     ↓ (TCP Socket)
-  Python Server
-     ↓
-  Multi-threaded Broadcasting
-     ↓
-  All Connected Clients
-```
-
-### Communication Flow
-1. User registers username → Saved to Supabase
-2. App opens → Loads users from Supabase
-3. User clicks Group Chat → Connects to TCP server
-4. User clicks Private Chat → Connects with user identifier
-5. Messages broadcast in real-time via TCP
-6. Files transferred as binary data
-
-## Configuration
-
-### Server (`server/config.py`):
-```python
-HOST = '0.0.0.0'
-PORT = 5555
-MAX_CLIENTS = 100
-```
-
-### Client (`client_flutter/lib/config/app_config.dart`):
-```dart
-static const String defaultHost = '192.168.1.44';
-static const int defaultPort = 5555;
-```
-
-### Supabase (`client_flutter/lib/config/supabase_config.dart`):
-```dart
-static const String supabaseUrl = 'YOUR_SUPABASE_URL';
-static const String supabaseAnonKey = 'YOUR_ANON_KEY';
-```
-
-## Troubleshooting
-
-### Supabase Issues
-- **"Failed to initialize"**: Check URL and anon key in config
-- **"Username taken"**: Choose different username
-- **"Can't see users"**: Check Supabase table has data
-
-### Connection Issues
-- Verify server is running
-- Check firewall allows port 5555
-- Use correct server IP (not 127.0.0.1 for mobile)
-- Ensure phone and PC on same WiFi
-
-### Build Issues
-- Run `flutter clean && flutter pub get`
-- Check NDK version in `android/app/build.gradle.kts`
-- Update Flutter: `flutter upgrade`
-
-### Find Your PC IP:
-```bash
-# Windows
-ipconfig
-
-# Linux/Mac
-ifconfig
-```
-
-## What's New
-
-### ✨ Latest Features:
-- 🎨 **Splash Screen** with smooth animations
-- 👤 **Supabase Integration** for user management
-- 💾 **Persistent Login** (register once)
-- 📋 **Chat List** like WhatsApp
-- 💬 **Private Messaging** (1-on-1 chats)
-- 🟢 **Online Status** indicators
-- 🎯 **Smart Message Grouping**
-- 🎨 **Modern UI** with gradients and shadows
-
-## Coming Soon
-
-- [ ] Private message history in Supabase
-- [ ] Typing indicators
-- [ ] Read receipts
-- [ ] Message reactions
-- [ ] Push notifications
-- [ ] Voice messages
-- [ ] Group creation
-- [ ] User profiles with avatars
-
-## Database Schema
-
-```sql
-chat_users:
-- id (UUID, Primary Key)
-- username (TEXT, Unique)
-- created_at (TIMESTAMP)
-- is_online (BOOLEAN)
-- last_seen (TIMESTAMP)
-
-private_messages:
-- id (UUID, Primary Key)
-- sender_id (FK → chat_users)
-- receiver_id (FK → chat_users)
-- content (TEXT)
-- created_at (TIMESTAMP)
-- is_read (BOOLEAN)
-```
-
-## Screenshots Flow
-
-1. **Splash Screen** → Animated logo + loading
-2. **Username Setup** → One-time registration
-3. **Chat List** → Group + Users list
-4. **Group Chat** → Multi-user messaging
-5. **Private Chat** → 1-on-1 conversations
-
-## License
-
-MIT License
-
-## Repository
-
-🔗 [GitHub - distributed_chat](https://github.com/sahil00016/distributed_chat)
 
 ---
 
-**Built with ❤️ using Python, Flutter & Supabase**
+## 🛠 Configuration Summary
+
+### Server (`server/config.py`)
+```python
+HOST = os.getenv('HOST', '0.0.0.0')
+PORT = int(os.getenv('PORT', '5555'))
+MAX_CLIENTS = 100
+```
+
+### Client (`client_flutter/lib/config/app_config.dart`)
+```dart
+static const String defaultHost = 'maglev.proxy.rlwy.net';
+static const int defaultPort = 50159;
+```
+
+### Supabase (`client_flutter/lib/config/supabase_config.dart`)
+```dart
+static const String supabaseUrl = 'YOUR_SUPABASE_URL';
+static const String supabaseAnonKey = 'YOUR_SUPABASE_ANON_KEY';
+```
+
+---
+
+## 🧰 Troubleshooting
+
+### Cannot connect / “SocketException”
+- Confirm Railway service is running and grab the **TCP proxy** host/port
+- Ensure the APK uses the updated `AppConfig` values
+- Check Supabase credentials (supabase_config.dart)
+- If running locally: open firewall port, use your machine’s LAN IP
+
+### Supabase errors
+- Re-run `SUPABASE_UNREAD_AND_GROUPS.sql` to ensure tables/policies exist
+- Confirm `chat-files` storage bucket is public
+- Validate anon key & URL match the project
+
+### Flutter build issues
+- Run `flutter clean && flutter pub get`
+- Confirm `flutter doctor` has no critical issues
+- Ensure Android NDK version in `android/app/build.gradle.kts` matches your SDK
+
+---
+
+## 📦 Sharing the App
+- Build release APK (`flutter build apk --release`)
+- Send `app-release.apk` via WhatsApp/Drive/email
+- Receiver enables “Install from unknown sources” and installs
+- Both parties can chat from anywhere (Railway-hosted socket + Supabase backend)
+
+---
+
+## 🛣 Roadmap / Ideas
+- Typing indicators & read receipts
+- Push notifications
+- Voice messages
+- Enhanced admin tooling & audit logs
+
+---
+
+## 📄 License
+MIT License
+
+---
+
+Built with ❤️ using Python, Flutter, and Supabase. Enjoy your distributed chat! 🚀
