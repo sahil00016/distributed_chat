@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../config/app_config.dart';
 import '../services/socket_service.dart';
 import 'chat_screen.dart';
-import 'connect_screen.dart';
+import 'username_setup_screen.dart';
 
 class ChatListScreen extends StatefulWidget {
   final String username;
@@ -72,7 +72,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
     
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (context) => const ConnectScreen()),
+      MaterialPageRoute(builder: (context) => const UsernameSetupScreen()),
       (route) => false,
     );
   }
