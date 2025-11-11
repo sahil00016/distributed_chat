@@ -40,10 +40,16 @@ class _ChatListScreenState extends State<ChatListScreen> {
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     await SupabaseService.ensureUserInDefaultGroup(widget.userId);
-    await Future.wait([
-      _loadGroups(),
-      _loadUsers(),
-    ]);
+    try {
+      await Future.wait([
+        _loadGroups(),
+        _loadUsers(),
+      ]);
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   Future<void> _loadGroups() async {
@@ -81,12 +87,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
       setState(() {
         _allUsers = users;
         _userUnreadCounts = unreadCounts;
-        _isLoading = false;
       });
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error loading users: $e')),
@@ -248,15 +250,29 @@ class _ChatListScreenState extends State<ChatListScreen> {
                           ),
                         ),
                         TextButton.icon(
-                          onPressed: () {
-                            Navigator.of(context).push(
+                          onPressed: () async {
+                            final createdGroupId = await Navigator.of(context).push<String>(
                               MaterialPageRoute(
                                 builder: (context) => CreateGroupScreen(
                                   currentUserId: widget.userId,
                                   currentUsername: widget.username,
                                 ),
                               ),
-                            ).then((_) => _loadData());
+                            );
+
+                            if (createdGroupId != null) {
+                              await _loadData();
+                              ChatGroup? newGroup;
+                              for (final group in _groups) {
+                                if (group.id == createdGroupId) {
+                                  newGroup = group;
+                                  break;
+                                }
+                              }
+                              if (newGroup != null && mounted) {
+                                _openGroupChat(newGroup);
+                              }
+                            }
                           },
                           icon: const Icon(Icons.add, size: 16),
                           label: const Text('New'),

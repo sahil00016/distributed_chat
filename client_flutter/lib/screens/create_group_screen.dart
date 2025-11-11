@@ -86,19 +86,8 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
 
       if (!mounted) return;
 
-      // Navigate to the new group chat
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (context) => ChatScreen(
-            socketService: null, // sockets handled when joining via list
-            chatType: ChatType.group,
-            chatTitle: _groupNameController.text.trim(),
-            groupId: groupId,
-          ),
-        ),
-      );
+      Navigator.of(context).pop(groupId);
     } catch (e) {
-      setState(() => _isCreating = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -106,6 +95,10 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
             backgroundColor: Colors.red,
           ),
         );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isCreating = false);
       }
     }
   }

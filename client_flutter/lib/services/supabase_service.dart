@@ -176,8 +176,10 @@ class SupabaseService {
         groups.add(ChatGroup(
           id: groupData['id'],
           name: groupData['name'],
-          createdBy: groupData['created_by'],
-          createdAt: DateTime.parse(groupData['created_at']),
+          createdBy: groupData['created_by'] as String?,
+          createdAt: groupData['created_at'] != null
+              ? DateTime.tryParse(groupData['created_at'])
+              : null,
           isDefault: groupData['is_default'] ?? false,
           unreadCount: unreadCount,
         ));
@@ -299,10 +301,19 @@ class SupabaseService {
   // Ensure user is in default group
   static Future<void> ensureUserInDefaultGroup(String userId) async {
     try {
-      await _client.from('group_members').upsert({
-        'group_id': defaultGroupId,
-        'user_id': userId,
-      });
+      final existing = await _client
+          .from('group_members')
+          .select('user_id')
+          .eq('group_id', defaultGroupId)
+          .eq('user_id', userId)
+          .maybeSingle();
+
+      if (existing == null) {
+        await _client.from('group_members').insert({
+          'group_id': defaultGroupId,
+          'user_id': userId,
+        });
+      }
     } catch (e) {
       debugPrint('Error ensuring default group membership: $e');
     }
