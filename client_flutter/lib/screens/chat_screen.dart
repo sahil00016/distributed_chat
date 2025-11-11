@@ -12,17 +12,19 @@ import '../widgets/user_list_drawer.dart';
 import 'chat_list_screen.dart';
 
 class ChatScreen extends StatefulWidget {
-  final SocketService socketService;
+  final SocketService? socketService;
   final ChatType chatType;
   final String chatTitle;
   final String? otherUserId;
+  final String? groupId;
 
   const ChatScreen({
     super.key,
-    required this.socketService,
+    this.socketService,
     required this.chatType,
     required this.chatTitle,
     this.otherUserId,
+    this.groupId,
   });
 
   @override
@@ -64,7 +66,12 @@ class _ChatScreenState extends State<ChatScreen> {
       List<Message> history;
       
       if (widget.chatType == ChatType.group) {
-        history = await SupabaseService.loadGroupMessages();
+        if (widget.groupId == null) {
+          debugPrint('Error: Group ID not available for group chat');
+          setState(() => _isLoadingHistory = false);
+          return;
+        }
+        history = await SupabaseService.loadGroupMessages(groupId: widget.groupId!);
       } else {
         if (_currentUserId == null || widget.otherUserId == null) {
           debugPrint('Error: User IDs not available for private chat');
@@ -106,8 +113,10 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _setupListeners() {
+    if (widget.socketService == null) return;
+    
     // Listen to messages
-    widget.socketService.messageStream.listen((message) {
+    widget.socketService!.messageStream.listen((message) {
       setState(() {
         _messages.add(message);
       });
@@ -115,7 +124,7 @@ class _ChatScreenState extends State<ChatScreen> {
     });
 
     // Listen to user list updates
-    widget.socketService.userListStream.listen((users) {
+    widget.socketService!.userListStream.listen((users) {
       setState(() {
         _users.clear();
         _users.addAll(users);
@@ -123,7 +132,7 @@ class _ChatScreenState extends State<ChatScreen> {
     });
 
     // Listen to file data
-    widget.socketService.fileDataStream.listen((fileData) {
+    widget.socketService!.fileDataStream.listen((fileData) {
       _showFileReceivedDialog(fileData.filename, fileData.size);
     });
   }
@@ -144,8 +153,8 @@ class _ChatScreenState extends State<ChatScreen> {
     final content = _messageController.text.trim();
     if (content.isEmpty) return;
 
-    // Send via socket for real-time
-    widget.socketService.sendChatMessage(content);
+    // Send via socket for real-time (if available)
+    widget.socketService?.sendChatMessage(content);
     _messageController.clear();
     
     // Save to Supabase for persistence
@@ -154,6 +163,7 @@ class _ChatScreenState extends State<ChatScreen> {
         await SupabaseService.saveGroupMessage(
           senderId: _currentUserId ?? '',
           senderUsername: _currentUsername ?? '',
+          groupId: widget.groupId ?? '',
           content: content,
           messageType: 'text',
         );
@@ -203,6 +213,7 @@ class _ChatScreenState extends State<ChatScreen> {
           await SupabaseService.saveGroupMessage(
             senderId: _currentUserId ?? '',
             senderUsername: _currentUsername ?? '',
+            groupId: widget.groupId ?? '',
             messageType: messageType,
             fileUrl: fileUrl,
             fileName: fileName,
@@ -224,7 +235,7 @@ class _ChatScreenState extends State<ChatScreen> {
         
         // Also send via socket for real-time (optional)
         final fileData = await file.readAsBytes();
-        await widget.socketService.sendFile(result.files.single.path!, fileData);
+        await widget.socketService?.sendFile(result.files.single.path!, fileData);
         
         // Add to local messages for immediate display
         setState(() {
@@ -339,7 +350,7 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
           ElevatedButton(
             onPressed: () {
-              widget.socketService.disconnect();
+              widget.socketService?.disconnect();
               Navigator.of(context).pop();
               Navigator.of(context).pop();
             },
@@ -413,34 +424,35 @@ class _ChatScreenState extends State<ChatScreen> {
       body: Column(
         children: [
           // Connection status
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            color: widget.socketService.isConnected
-                ? Colors.green.shade100
-                : Colors.red.shade100,
-            child: Row(
-              children: [
-                Icon(
-                  widget.socketService.isConnected
-                      ? Icons.circle
-                      : Icons.circle_outlined,
-                  size: 12,
-                  color: widget.socketService.isConnected
-                      ? Colors.green
-                      : Colors.red,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  widget.socketService.isConnected
-                      ? 'Connected'
-                      : 'Disconnected',
-                  style: TextStyle(
-                    color: widget.socketService.isConnected
-                        ? Colors.green.shade900
-                        : Colors.red.shade900,
-                    fontSize: 12,
+          if (widget.socketService != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              color: widget.socketService!.isConnected
+                  ? Colors.green.shade100
+                  : Colors.red.shade100,
+              child: Row(
+                children: [
+                  Icon(
+                    widget.socketService!.isConnected
+                        ? Icons.circle
+                        : Icons.circle_outlined,
+                    size: 12,
+                    color: widget.socketService!.isConnected
+                        ? Colors.green
+                        : Colors.red,
                   ),
-                ),
+                  const SizedBox(width: 8),
+                  Text(
+                    widget.socketService!.isConnected
+                        ? 'Connected'
+                        : 'Disconnected',
+                    style: TextStyle(
+                      color: widget.socketService!.isConnected
+                          ? Colors.green.shade900
+                          : Colors.red.shade900,
+                      fontSize: 12,
+                    ),
+                  ),
               ],
             ),
           ),

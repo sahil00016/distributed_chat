@@ -3,8 +3,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/app_config.dart';
 import '../services/socket_service.dart';
+import '../services/supabase_service.dart';
+import '../models/group.dart';
 import 'chat_screen.dart';
 import 'username_setup_screen.dart';
+import 'create_group_screen.dart';
 
 class ChatListScreen extends StatefulWidget {
   final String username;
@@ -21,14 +24,34 @@ class ChatListScreen extends StatefulWidget {
 }
 
 class _ChatListScreenState extends State<ChatListScreen> {
+  List<ChatGroup> _groups = [];
   List<Map<String, dynamic>> _allUsers = [];
+  Map<String, int> _userUnreadCounts = {};
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _loadUsers();
+    _loadData();
     _setOnlineStatus(true);
+  }
+
+  Future<void> _loadData() async {
+    await Future.wait([
+      _loadGroups(),
+      _loadUsers(),
+    ]);
+  }
+
+  Future<void> _loadGroups() async {
+    try {
+      final groups = await SupabaseService.loadUserGroups(widget.userId);
+      setState(() {
+        _groups = groups;
+      });
+    } catch (e) {
+      debugPrint('Error loading groups: $e');
+    }
   }
 
   Future<void> _loadUsers() async {
@@ -39,8 +62,22 @@ class _ChatListScreenState extends State<ChatListScreen> {
           .neq('id', widget.userId)
           .order('username');
 
+      final users = List<Map<String, dynamic>>.from(response);
+      
+      // Load unread counts for each user
+      final Map<String, int> unreadCounts = {};
+      for (var user in users) {
+        final userId = user['id'] as String;
+        final count = await SupabaseService.getPrivateUnreadCount(
+          widget.userId,
+          userId,
+        );
+        unreadCounts[userId] = count;
+      }
+
       setState(() {
-        _allUsers = List<Map<String, dynamic>>.from(response);
+        _allUsers = users;
+        _userUnreadCounts = unreadCounts;
         _isLoading = false;
       });
     } catch (e) {
@@ -77,7 +114,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
     );
   }
 
-  Future<void> _openGroupChat() async {
+  Future<void> _openGroupChat(ChatGroup group) async {
     final socketService = SocketService();
     final success = await socketService.connect(
       AppConfig.defaultHost,
@@ -88,15 +125,19 @@ class _ChatListScreenState extends State<ChatListScreen> {
     if (!mounted) return;
 
     if (success) {
+      // Mark as read when opening
+      await SupabaseService.markGroupAsRead(widget.userId, group.id);
+      
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (context) => ChatScreen(
             socketService: socketService,
             chatType: ChatType.group,
-            chatTitle: 'Group Chat',
+            chatTitle: group.name,
+            groupId: group.id,
           ),
         ),
-      );
+      ).then((_) => _loadData()); // Refresh when returning
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -118,6 +159,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
     if (!mounted) return;
 
     if (success) {
+      // Mark as read when opening
+      await SupabaseService.markPrivateMessagesAsRead(widget.userId, otherUserId);
+      
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (context) => ChatScreen(
@@ -127,7 +171,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
             otherUserId: otherUserId,
           ),
         ),
-      );
+      ).then((_) => _loadData()); // Refresh when returning
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -182,57 +226,130 @@ class _ChatListScreenState extends State<ChatListScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
-              onRefresh: _loadUsers,
+              onRefresh: _loadData,
               child: ListView(
                 children: [
-                  // Group Chat Card
-                  Card(
-                    margin: const EdgeInsets.all(12),
-                    elevation: 2,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+                  // Groups Section
+                  if (_groups.isNotEmpty) ...[
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'GROUPS',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey.shade600,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                          TextButton.icon(
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (context) => CreateGroupScreen(
+                                    currentUserId: widget.userId,
+                                    currentUsername: widget.username,
+                                  ),
+                                ),
+                              ).then((_) => _loadData());
+                            },
+                            icon: const Icon(Icons.add, size: 16),
+                            label: const Text('New'),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.all(16),
-                      leading: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              Theme.of(context).colorScheme.primary,
-                              Theme.of(context).colorScheme.secondary,
+                    ...(_groups.map((group) {
+                      final hasUnread = group.unreadCount > 0;
+                      
+                      return Card(
+                        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        elevation: hasUnread ? 3 : 1,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.all(16),
+                          leading: Stack(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      Theme.of(context).colorScheme.primary,
+                                      Theme.of(context).colorScheme.secondary,
+                                    ],
+                                  ),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  group.isDefault
+                                      ? Icons.groups_rounded
+                                      : Icons.group,
+                                  color: Colors.white,
+                                  size: 28,
+                                ),
+                              ),
+                              if (hasUnread)
+                                Positioned(
+                                  right: 0,
+                                  top: 0,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: const BoxDecoration(
+                                      color: Colors.red,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    constraints: const BoxConstraints(
+                                      minWidth: 20,
+                                      minHeight: 20,
+                                    ),
+                                    child: Text(
+                                      '${group.unreadCount}',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
+                                ),
                             ],
                           ),
-                          shape: BoxShape.circle,
+                          title: Text(
+                            group.name,
+                            style: TextStyle(
+                              fontWeight: hasUnread ? FontWeight.bold : FontWeight.w600,
+                              fontSize: 16,
+                            ),
+                          ),
+                          subtitle: Text(
+                            group.isDefault ? 'Public Group' : 'Private Group',
+                            style: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontSize: 14,
+                            ),
+                          ),
+                          trailing: Icon(
+                            Icons.arrow_forward_ios,
+                            size: 16,
+                            color: Colors.grey.shade400,
+                          ),
+                          onTap: () => _openGroupChat(group),
                         ),
-                        child: const Icon(
-                          Icons.groups_rounded,
-                          color: Colors.white,
-                          size: 28,
-                        ),
-                      ),
-                      title: const Text(
-                        'Group Chat',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                      subtitle: Text(
-                        '${_allUsers.length + 1} members',
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 14,
-                        ),
-                      ),
-                      trailing: Icon(
-                        Icons.arrow_forward_ios,
-                        size: 16,
-                        color: Colors.grey.shade400,
-                      ),
-                      onTap: _openGroupChat,
-                    ),
-                  ),
+                      );
+                    })),
+                  ],
 
                   // Section Header
                   Padding(
@@ -285,6 +402,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
                       final username = user['username'] as String;
                       final userId = user['id'] as String;
                       final isOnline = user['is_online'] as bool? ?? false;
+                      final unreadCount = _userUnreadCounts[userId] ?? 0;
+                      final hasUnread = unreadCount > 0;
 
                       return ListTile(
                         contentPadding:
@@ -324,8 +443,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
                         ),
                         title: Text(
                           username,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
+                          style: TextStyle(
+                            fontWeight: hasUnread ? FontWeight.bold : FontWeight.w600,
                             fontSize: 16,
                           ),
                         ),
@@ -336,10 +455,31 @@ class _ChatListScreenState extends State<ChatListScreen> {
                             fontSize: 13,
                           ),
                         ),
-                        trailing: Icon(
-                          Icons.chat_bubble_outline,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
+                        trailing: hasUnread
+                            ? Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.red,
+                                  shape: BoxShape.circle,
+                                ),
+                                constraints: const BoxConstraints(
+                                  minWidth: 24,
+                                  minHeight: 24,
+                                ),
+                                child: Text(
+                                  '$unreadCount',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              )
+                            : Icon(
+                                Icons.chat_bubble_outline,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
                         onTap: () => _openPrivateChat(username, userId),
                       );
                     }).toList()),
