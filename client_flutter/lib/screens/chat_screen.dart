@@ -37,6 +37,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final _scrollController = ScrollController();
   final List<Message> _messages = [];
   final List<User> _users = [];
+  final Set<String> _selectedMessageIds = {};
   bool _isUploading = false;
   bool _isLoadingHistory = true;
   String? _currentUserId;
@@ -44,6 +45,8 @@ class _ChatScreenState extends State<ChatScreen> {
   StreamSubscription<Message>? _messageSubscription;
   StreamSubscription<List<User>>? _userListSubscription;
   StreamSubscription<FileData>? _fileDataSubscription;
+
+  bool get _isSelectionMode => _selectedMessageIds.isNotEmpty;
 
   @override
   void initState() {
@@ -91,6 +94,7 @@ class _ChatScreenState extends State<ChatScreen> {
       
       if (!mounted) return;
       setState(() {
+        _selectedMessageIds.clear();
         _messages
           ..clear()
           ..addAll(history.map((msg) {
@@ -126,6 +130,9 @@ class _ChatScreenState extends State<ChatScreen> {
     _messageSubscription = widget.socketService!.messageStream.listen((message) {
       if (!mounted) return;
       setState(() {
+        if (message.id != null) {
+          _selectedMessageIds.remove(message.id);
+        }
         _messages.add(
           Message(
             type: message.type,
@@ -337,7 +344,55 @@ class _ChatScreenState extends State<ChatScreen> {
     return '${(bytes / (1024 * 1024)).toStringAsFixed(2)} MB';
   }
 
+  void _toggleSelection(Message message) {
+    if (message.id == null || !message.isMe) return;
+    setState(() {
+      if (_selectedMessageIds.contains(message.id)) {
+        _selectedMessageIds.remove(message.id);
+      } else {
+        _selectedMessageIds.add(message.id!);
+      }
+    });
+  }
+
+  void _clearSelection() {
+    setState(() => _selectedMessageIds.clear());
+  }
+
+  Future<void> _deleteSelectedMessages() async {
+    final ids = _selectedMessageIds.toList();
+    if (ids.isEmpty) return;
+
+    try {
+      if (widget.chatType == ChatType.group) {
+        await SupabaseService.deleteGroupMessages(ids);
+      } else {
+        await SupabaseService.deletePrivateMessages(ids);
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _messages.removeWhere((msg) => msg.id != null && _selectedMessageIds.contains(msg.id));
+        _selectedMessageIds.clear();
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Messages deleted')),
+      );
+    } catch (e) {
+      debugPrint('Error deleting messages: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to delete message: $e')),
+      );
+    }
+  }
+
   void _disconnect() {
+    if (_isSelectionMode) {
+      _clearSelection();
+      return;
+    }
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -375,41 +430,56 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        flexibleSpace: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Theme.of(context).colorScheme.primary,
-                Theme.of(context).colorScheme.primary.withOpacity(0.8),
-              ],
-            ),
-          ),
+  PreferredSizeWidget _buildAppBar(BuildContext context) {
+    if (_isSelectionMode) {
+      return AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: _clearSelection,
         ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              widget.chatTitle,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            Text(
-              widget.chatType == ChatType.group
-                  ? '${_users.length} members'
-                  : 'Private Chat',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Colors.white.withOpacity(0.9),
-              ),
-            ),
-          ],
-        ),
+        title: Text('${_selectedMessageIds.length} selected'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.delete_outline),
+            onPressed: _deleteSelectedMessages,
+          ),
+        ],
+      );
+    }
+
+    return AppBar(
+      flexibleSpace: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Theme.of(context).colorScheme.primary,
+              Theme.of(context).colorScheme.primary.withOpacity(0.8),
+            ],
+          ),
+        ),
+      ),
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            widget.chatTitle,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          Text(
+            widget.chatType == ChatType.group
+                ? '${_users.length} members'
+                : 'Private Chat',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Colors.white.withOpacity(0.9),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        Builder(
+          builder: (context) => IconButton(
             icon: Badge(
               label: Text('${_users.length}'),
               child: const Icon(Icons.people),
@@ -418,12 +488,19 @@ class _ChatScreenState extends State<ChatScreen> {
               Scaffold.of(context).openEndDrawer();
             },
           ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: _disconnect,
-          ),
-        ],
-      ),
+        ),
+        IconButton(
+          icon: const Icon(Icons.logout),
+          onPressed: _disconnect,
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: _buildAppBar(context),
       endDrawer: UserListDrawer(users: _users),
       body: Column(
         children: [
@@ -528,11 +605,22 @@ class _ChatScreenState extends State<ChatScreen> {
                           _messages[index - 1].isSystemMessage ||
                           message.isSystemMessage;
                       final showUsername = showAvatar && !message.isMe && !message.isSystemMessage;
-                      
-                      return MessageBubble(
-                        message: message,
-                        showAvatar: showAvatar,
-                        showUsername: showUsername,
+                      final isSelected =
+                          message.id != null && _selectedMessageIds.contains(message.id);
+
+                      return GestureDetector(
+                        onLongPress: () => _toggleSelection(message),
+                        onTap: () {
+                          if (_isSelectionMode) {
+                            _toggleSelection(message);
+                          }
+                        },
+                        child: MessageBubble(
+                          message: message,
+                          showAvatar: showAvatar,
+                          showUsername: showUsername,
+                          isSelected: isSelected,
+                        ),
                       );
                     },
                   ),

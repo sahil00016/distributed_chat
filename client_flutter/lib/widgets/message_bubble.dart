@@ -7,12 +7,14 @@ class MessageBubble extends StatelessWidget {
   final Message message;
   final bool showAvatar;
   final bool showUsername;
+  final bool isSelected;
 
   const MessageBubble({
     super.key,
     required this.message,
     this.showAvatar = true,
     this.showUsername = true,
+    this.isSelected = false,
   });
 
   @override
@@ -75,15 +77,14 @@ class MessageBubble extends StatelessWidget {
                   ),
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
-                    color: message.isMe
-                        ? Theme.of(context).colorScheme.primary
-                        : Theme.of(context).colorScheme.surfaceVariant,
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(message.isMe || !showAvatar ? 18 : 4),
-                      topRight: Radius.circular(message.isMe && showAvatar ? 4 : 18),
-                      bottomLeft: const Radius.circular(18),
-                      bottomRight: const Radius.circular(18),
-                    ),
+                    color: _bubbleColor(context),
+                    borderRadius: _bubbleRadius,
+                    border: isSelected
+                        ? Border.all(
+                            color: Theme.of(context).colorScheme.primary,
+                            width: 2,
+                          )
+                        : null,
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withOpacity(0.05),
@@ -272,6 +273,24 @@ class MessageBubble extends StatelessWidget {
     
     final hash = username.codeUnits.fold(0, (prev, element) => prev + element);
     return colors[hash % colors.length];
+  }
+
+  Color _bubbleColor(BuildContext context) {
+    if (isSelected) {
+      return Theme.of(context).colorScheme.primary.withOpacity(message.isMe ? 0.4 : 0.2);
+    }
+    return message.isMe
+        ? Theme.of(context).colorScheme.primary
+        : Theme.of(context).colorScheme.surfaceVariant;
+  }
+
+  BorderRadius get _bubbleRadius {
+    return BorderRadius.only(
+      topLeft: Radius.circular(message.isMe || !showAvatar ? 18 : 4),
+      topRight: Radius.circular(message.isMe && showAvatar ? 4 : 18),
+      bottomLeft: const Radius.circular(18),
+      bottomRight: const Radius.circular(18),
+    );
   }
 }
 

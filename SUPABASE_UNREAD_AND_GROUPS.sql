@@ -81,6 +81,11 @@ CREATE POLICY "Users can update their read status"
     ON group_message_reads FOR UPDATE
     USING (true);
 
+DROP POLICY IF EXISTS "Anyone can delete group messages" ON group_messages;
+CREATE POLICY "Anyone can delete group messages"
+    ON group_messages FOR DELETE
+    USING (true);
+
 DROP POLICY IF EXISTS "Anyone can read groups" ON chat_groups;
 CREATE POLICY "Anyone can read groups"
     ON chat_groups FOR SELECT
@@ -100,6 +105,11 @@ DROP POLICY IF EXISTS "Users can join groups" ON group_members;
 CREATE POLICY "Users can join groups"
     ON group_members FOR INSERT
     WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Anyone can delete private messages" ON private_messages;
+CREATE POLICY "Anyone can delete private messages"
+    ON private_messages FOR DELETE
+    USING (true);
 
 -- 11. Function to get unread count for private messages
 CREATE OR REPLACE FUNCTION get_unread_private_count(for_user_id UUID, from_user_id UUID)
