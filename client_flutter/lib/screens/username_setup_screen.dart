@@ -33,7 +33,6 @@ class _UsernameSetupScreenState extends State<UsernameSetupScreen> {
 
     try {
       final username = _usernameController.text.trim();
-      final userId = const Uuid().v4();
 
       // Check if username already exists in Supabase
       final response = await Supabase.instance.client
@@ -42,21 +41,28 @@ class _UsernameSetupScreenState extends State<UsernameSetupScreen> {
           .eq('username', username)
           .maybeSingle();
 
-      if (response != null) {
-        setState(() {
-          _errorMessage = 'Username already taken. Please choose another.';
-          _isLoading = false;
-        });
-        return;
-      }
+      String userId;
 
-      // Insert new user
-      await Supabase.instance.client.from('chat_users').insert({
-        'id': userId,
-        'username': username,
-        'created_at': DateTime.now().toIso8601String(),
-        'is_online': true,
-      });
+      if (response != null) {
+        // User exists - login
+        userId = response['id'] as String;
+        
+        // Update online status
+        await Supabase.instance.client
+            .from('chat_users')
+            .update({'is_online': true})
+            .eq('id', userId);
+      } else {
+        // New user - register
+        userId = const Uuid().v4();
+        
+        await Supabase.instance.client.from('chat_users').insert({
+          'id': userId,
+          'username': username,
+          'created_at': DateTime.now().toIso8601String(),
+          'is_online': true,
+        });
+      }
 
       // Save to local storage
       final prefs = await SharedPreferences.getInstance();
@@ -123,7 +129,7 @@ class _UsernameSetupScreenState extends State<UsernameSetupScreen> {
                             shape: BoxShape.circle,
                           ),
                           child: Icon(
-                            Icons.person_add_rounded,
+                            Icons.account_circle_rounded,
                             size: 64,
                             color: Theme.of(context).colorScheme.primary,
                           ),
@@ -132,7 +138,7 @@ class _UsernameSetupScreenState extends State<UsernameSetupScreen> {
 
                         // Title
                         Text(
-                          'Choose Username',
+                          'Welcome Back!',
                           style: Theme.of(context)
                               .textTheme
                               .headlineMedium
@@ -142,7 +148,7 @@ class _UsernameSetupScreenState extends State<UsernameSetupScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Pick a unique username to get started',
+                          'Enter your username to continue',
                           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                 color: Colors.grey,
                               ),
