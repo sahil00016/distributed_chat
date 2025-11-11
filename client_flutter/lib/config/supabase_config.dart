@@ -1,10 +1,9 @@
 /// Supabase Configuration
 class SupabaseConfig {
-  // TODO: Replace with your Supabase project credentials
-  // Get these from: https://app.supabase.com/project/_/settings/api
+  // Supabase project credentials
   
-  static const String supabaseUrl = 'YOUR_SUPABASE_URL';
-  static const String supabaseAnonKey = 'YOUR_SUPABASE_ANON_KEY';
+  static const String supabaseUrl = 'https://kphijzrmjalaafabsojy.supabase.co';
+  static const String supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtwaGlqenJtamFsYWFmYWJzb2p5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI4Nzc5OTksImV4cCI6MjA3ODQ1Mzk5OX0.XfWs7QeB631_r4XowF-Dlr8h6Cz7Qu6GEfBKrPlFKZ8';
   
   // Table name for users
   static const String usersTable = 'chat_users';
