@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/supabase_service.dart';
 import 'chat_screen.dart';
+import '../models/chat_type.dart';
 
 class CreateGroupScreen extends StatefulWidget {
   final String currentUserId;

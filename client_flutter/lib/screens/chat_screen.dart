@@ -9,7 +9,7 @@ import '../models/message.dart';
 import '../models/user.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/user_list_drawer.dart';
-import 'chat_list_screen.dart';
+import '../models/chat_type.dart';
 
 class ChatScreen extends StatefulWidget {
   final SocketService? socketService;

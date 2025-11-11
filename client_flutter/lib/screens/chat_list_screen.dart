@@ -5,6 +5,7 @@ import '../config/app_config.dart';
 import '../services/socket_service.dart';
 import '../services/supabase_service.dart';
 import '../models/group.dart';
+import '../models/chat_type.dart';
 import 'chat_screen.dart';
 import 'username_setup_screen.dart';
 import 'create_group_screen.dart';
@@ -505,6 +506,4 @@ class _ChatListScreenState extends State<ChatListScreen> {
     return colors[hash % colors.length];
   }
 }
-
-enum ChatType { group, private }
 

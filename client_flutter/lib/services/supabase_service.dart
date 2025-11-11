@@ -244,7 +244,7 @@ class SupabaseService {
   static Future<int> getPrivateUnreadCount(String forUserId, String fromUserId) async {
     final response = await _client
         .from('private_messages')
-        .select('id', const FetchOptions(count: CountOption.exact))
+        .select('id', count: CountOption.exact)
         .eq('receiver_id', forUserId)
         .eq('sender_id', fromUserId)
         .eq('is_read', false);
@@ -269,7 +269,7 @@ class SupabaseService {
     // Count unread messages
     final response = await _client
         .from('group_messages')
-        .select('id', const FetchOptions(count: CountOption.exact))
+        .select('id', count: CountOption.exact)
         .eq('group_id', groupId)
         .neq('sender_id', userId)
         .gt('created_at', lastRead.toIso8601String());
