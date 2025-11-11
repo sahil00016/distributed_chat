@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/message.dart';
 import '../models/group.dart';
+import 'package:flutter/foundation.dart';
 
 class SupabaseService {
   static final _client = Supabase.instance.client;
@@ -242,39 +243,36 @@ class SupabaseService {
   
   // Get unread count for private messages
   static Future<int> getPrivateUnreadCount(String forUserId, String fromUserId) async {
-    final response = await _client
-        .from('private_messages')
-        .select('id', count: CountOption.exact)
-        .eq('receiver_id', forUserId)
-        .eq('sender_id', fromUserId)
-        .eq('is_read', false);
-    
-    return response.count ?? 0;
+    try {
+      final response = await _client.rpc('get_unread_private_count', params: {
+        'for_user_id': forUserId,
+        'from_user_id': fromUserId,
+      });
+
+      if (response is int) return response;
+      if (response is num) return response.toInt();
+      return 0;
+    } catch (e) {
+      debugPrint('Error getting private unread count: $e');
+      return 0;
+    }
   }
   
   // Get unread count for group messages
   static Future<int> getGroupUnreadCount(String userId, String groupId) async {
-    // Get last read timestamp
-    final readStatus = await _client
-        .from('group_message_reads')
-        .select('last_read_at')
-        .eq('user_id', userId)
-        .eq('group_id', groupId)
-        .maybeSingle();
-    
-    DateTime lastRead = readStatus != null && readStatus['last_read_at'] != null
-        ? DateTime.parse(readStatus['last_read_at'])
-        : DateTime(1970);
-    
-    // Count unread messages
-    final response = await _client
-        .from('group_messages')
-        .select('id', count: CountOption.exact)
-        .eq('group_id', groupId)
-        .neq('sender_id', userId)
-        .gt('created_at', lastRead.toIso8601String());
-    
-    return response.count ?? 0;
+    try {
+      final response = await _client.rpc('get_unread_group_count', params: {
+        'for_user_id': userId,
+        'for_group_id': groupId,
+      });
+
+      if (response is int) return response;
+      if (response is num) return response.toInt();
+      return 0;
+    } catch (e) {
+      debugPrint('Error getting group unread count: $e');
+      return 0;
+    }
   }
   
   // Mark group messages as read
