@@ -71,10 +71,22 @@ class _ChatScreenState extends State<ChatScreen> {
       
       setState(() {
         _messages.clear();
-        _messages.addAll(history.map((msg) {
-          msg.isMe = (msg.username == _currentUsername);
-          return msg;
-        }));
+        for (var msg in history) {
+          _messages.add(Message(
+            type: msg.type,
+            username: msg.username,
+            content: msg.content,
+            filename: msg.filename,
+            filesize: msg.filesize,
+            timestamp: msg.timestamp,
+            isMe: msg.username == _currentUsername,
+            messageType: msg.messageType,
+            fileUrl: msg.fileUrl,
+            fileType: msg.fileType,
+            thumbnailUrl: msg.thumbnailUrl,
+            id: msg.id,
+          ));
+        }
         _isLoadingHistory = false;
       });
       
