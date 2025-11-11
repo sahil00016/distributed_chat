@@ -205,66 +205,76 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _pickAndSendFile() async {
-    try {
-      setState(() => _isUploading = true);
+    if (mounted) setState(() => _isUploading = true);
 
+    try {
       final result = await FilePicker.platform.pickFiles(
+        allowMultiple: false,
         type: FileType.custom,
-        allowedExtensions: ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx'],
+        allowedExtensions: ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'doc', 'docx', 'ppt', 'pptx'],
       );
 
-      if (result != null && result.files.single.path != null) {
-        final file = File(result.files.single.path!);
-        final fileName = result.files.single.name;
-        final fileSize = result.files.single.size;
-        final mimeType = result.files.single.extension != null
-            ? _getMimeType(result.files.single.extension!)
-            : 'application/octet-stream';
-        
-        // Upload to Supabase Storage
-        final folder = SupabaseService.getFileCategory(mimeType);
-        final fileUrl = await SupabaseService.uploadFile(
-          file: file,
-          fileName: fileName,
-          folder: folder,
-        );
-        
-        final messageType = SupabaseService.isImageFile(mimeType) ? 'image' : 'document';
-        
-        // Save to Supabase database
-        if (widget.chatType == ChatType.group) {
-          await SupabaseService.saveGroupMessage(
-            senderId: _currentUserId ?? '',
-            senderUsername: _currentUsername ?? '',
-            groupId: widget.groupId,
-            messageType: messageType,
-            fileUrl: fileUrl,
-            fileName: fileName,
-            fileSize: fileSize,
-            fileType: mimeType,
-          );
-        } else {
-          await SupabaseService.savePrivateMessage(
-            senderId: _currentUserId ?? '',
-            receiverId: widget.otherUserId ?? '',
-            senderUsername: _currentUsername ?? '',
-            messageType: messageType,
-            fileUrl: fileUrl,
-            fileName: fileName,
-            fileSize: fileSize,
-            fileType: mimeType,
-          );
-        }
-        
-        final fileData = await file.readAsBytes();
-        await widget.socketService?.sendFile(result.files.single.path!, fileData);
-        await _loadChatHistory();
-      } catch (e) {
-        debugPrint('Error sending file: $e');
-      } finally {
+      if (result == null || result.files.isEmpty) {
         if (mounted) {
           setState(() => _isUploading = false);
         }
+        return;
+      }
+
+      final file = File(result.files.single.path!);
+      final fileName = result.files.single.name;
+      final fileSize = result.files.single.size;
+      final extension = fileName.split('.').last;
+      final mimeType = _getMimeType(extension);
+      final folder = SupabaseService.getFileCategory(mimeType);
+
+      if (fileSize > 10 * 1024 * 1024) {
+        if (mounted) {
+          setState(() => _isUploading = false);
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('File too large. Maximum size is 10 MB.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      final fileUrl = await SupabaseService.uploadFile(
+        file: file,
+        fileName: fileName,
+        folder: folder,
+      );
+
+      final messageType = SupabaseService.isImageFile(mimeType) ? 'image' : 'document';
+
+      if (widget.chatType == ChatType.group) {
+        await SupabaseService.saveGroupMessage(
+          senderId: _currentUserId ?? '',
+          senderUsername: _currentUsername ?? '',
+          groupId: widget.groupId,
+          messageType: messageType,
+          fileUrl: fileUrl,
+        );
+      } else {
+        await SupabaseService.savePrivateMessage(
+          senderId: _currentUserId ?? '',
+          receiverId: widget.otherUserId ?? '',
+          senderUsername: _currentUsername ?? '',
+          messageType: messageType,
+          fileUrl: fileUrl,
+        );
+      }
+
+      final fileData = await file.readAsBytes();
+      await widget.socketService?.sendFile(result.files.single.path!, fileData);
+      await _loadChatHistory();
+    } catch (e) {
+      debugPrint('Error sending file: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isUploading = false);
       }
     }
   }
