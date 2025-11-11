@@ -42,9 +42,13 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    _loadUserData();
-    _loadChatHistory();
+    _initialize();
     _setupListeners();
+  }
+  
+  Future<void> _initialize() async {
+    await _loadUserData();
+    await _loadChatHistory();
   }
   
   Future<void> _loadUserData() async {
@@ -62,7 +66,11 @@ class _ChatScreenState extends State<ChatScreen> {
       if (widget.chatType == ChatType.group) {
         history = await SupabaseService.loadGroupMessages();
       } else {
-        if (_currentUserId == null || widget.otherUserId == null) return;
+        if (_currentUserId == null || widget.otherUserId == null) {
+          debugPrint('Error: User IDs not available for private chat');
+          setState(() => _isLoadingHistory = false);
+          return;
+        }
         history = await SupabaseService.loadPrivateMessages(
           userId1: _currentUserId!,
           userId2: widget.otherUserId!,
