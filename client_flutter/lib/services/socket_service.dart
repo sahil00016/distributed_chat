@@ -112,16 +112,6 @@ class SocketService extends ChangeNotifier {
     };
     
     _sendMessage(message);
-    
-    // Add to local stream as well
-    final localMessage = Message(
-      type: 'message',
-      username: _username,
-      content: content,
-      timestamp: DateTime.now(),
-      isMe: true,
-    );
-    _messageController.add(localMessage);
   }
 
   Future<void> sendFile(String filepath, Uint8List fileData) async {

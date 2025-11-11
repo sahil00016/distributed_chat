@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
@@ -40,6 +41,9 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _isLoadingHistory = true;
   String? _currentUserId;
   String? _currentUsername;
+  StreamSubscription<Message>? _messageSubscription;
+  StreamSubscription<List<User>>? _userListSubscription;
+  StreamSubscription<FileData>? _fileDataSubscription;
 
   @override
   void initState() {
@@ -62,6 +66,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }
   
   Future<void> _loadChatHistory() async {
+    if (!mounted) return;
     try {
       List<Message> history;
       
@@ -84,30 +89,33 @@ class _ChatScreenState extends State<ChatScreen> {
         );
       }
       
+      if (!mounted) return;
       setState(() {
-        _messages.clear();
-        for (var msg in history) {
-          _messages.add(Message(
-            type: msg.type,
-            username: msg.username,
-            content: msg.content,
-            filename: msg.filename,
-            filesize: msg.filesize,
-            timestamp: msg.timestamp,
-            isMe: msg.username == _currentUsername,
-            messageType: msg.messageType,
-            fileUrl: msg.fileUrl,
-            fileType: msg.fileType,
-            thumbnailUrl: msg.thumbnailUrl,
-            id: msg.id,
-          ));
-        }
+        _messages
+          ..clear()
+          ..addAll(history.map((msg) {
+            return Message(
+              type: msg.type,
+              username: msg.username,
+              content: msg.content,
+              filename: msg.filename,
+              filesize: msg.filesize,
+              timestamp: msg.timestamp,
+              isMe: msg.username == _currentUsername,
+              messageType: msg.messageType,
+              fileUrl: msg.fileUrl,
+              fileType: msg.fileType,
+              thumbnailUrl: msg.thumbnailUrl,
+              id: msg.id,
+            );
+          }));
         _isLoadingHistory = false;
       });
       
       _scrollToBottom();
     } catch (e) {
       debugPrint('Error loading history: $e');
+      if (!mounted) return;
       setState(() => _isLoadingHistory = false);
     }
   }
@@ -115,24 +123,40 @@ class _ChatScreenState extends State<ChatScreen> {
   void _setupListeners() {
     if (widget.socketService == null) return;
     
-    // Listen to messages
-    widget.socketService!.messageStream.listen((message) {
+    _messageSubscription = widget.socketService!.messageStream.listen((message) {
+      if (!mounted) return;
       setState(() {
-        _messages.add(message);
+        _messages.add(
+          Message(
+            type: message.type,
+            username: message.username,
+            content: message.content,
+            filename: message.filename,
+            filesize: message.filesize,
+            timestamp: message.timestamp,
+            isMe: message.username == _currentUsername,
+            messageType: message.messageType,
+            fileUrl: message.fileUrl,
+            fileType: message.fileType,
+            thumbnailUrl: message.thumbnailUrl,
+            id: message.id,
+          ),
+        );
       });
       _scrollToBottom();
     });
 
-    // Listen to user list updates
-    widget.socketService!.userListStream.listen((users) {
+    _userListSubscription = widget.socketService!.userListStream.listen((users) {
+      if (!mounted) return;
       setState(() {
-        _users.clear();
-        _users.addAll(users);
+        _users
+          ..clear()
+          ..addAll(users);
       });
     });
 
-    // Listen to file data
-    widget.socketService!.fileDataStream.listen((fileData) {
+    _fileDataSubscription = widget.socketService!.fileDataStream.listen((fileData) {
+      if (!mounted) return;
       _showFileReceivedDialog(fileData.filename, fileData.size);
     });
   }
@@ -153,11 +177,9 @@ class _ChatScreenState extends State<ChatScreen> {
     final content = _messageController.text.trim();
     if (content.isEmpty) return;
 
-    // Send via socket for real-time (if available)
     widget.socketService?.sendChatMessage(content);
     _messageController.clear();
     
-    // Save to Supabase for persistence
     try {
       if (widget.chatType == ChatType.group) {
         await SupabaseService.saveGroupMessage(
@@ -176,6 +198,7 @@ class _ChatScreenState extends State<ChatScreen> {
           messageType: 'text',
         );
       }
+      await _loadChatHistory();
     } catch (e) {
       debugPrint('Error saving message: $e');
     }
@@ -233,33 +256,15 @@ class _ChatScreenState extends State<ChatScreen> {
           );
         }
         
-        // Also send via socket for real-time (optional)
         final fileData = await file.readAsBytes();
         await widget.socketService?.sendFile(result.files.single.path!, fileData);
-        
-        // No need to append locally; stream will update
-
+        await _loadChatHistory();
+      } catch (e) {
+        debugPrint('Error sending file: $e');
+      } finally {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('${messageType == 'image' ? 'Image' : 'File'} sent: $fileName'),
-              backgroundColor: Colors.green,
-            ),
-          );
+          setState(() => _isUploading = false);
         }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error sending file: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isUploading = false);
       }
     }
   }
@@ -351,8 +356,12 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    _messageSubscription?.cancel();
+    _userListSubscription?.cancel();
+    _fileDataSubscription?.cancel();
     _messageController.dispose();
     _scrollController.dispose();
+    widget.socketService?.disconnect();
     super.dispose();
   }
 
