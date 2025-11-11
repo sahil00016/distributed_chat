@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import 'chat_list_screen.dart';
+import '../services/supabase_service.dart';
 
 class UsernameSetupScreen extends StatefulWidget {
   const UsernameSetupScreen({super.key});
@@ -63,6 +64,9 @@ class _UsernameSetupScreenState extends State<UsernameSetupScreen> {
           'is_online': true,
         });
       }
+
+      // Ensure user is part of the global group
+      await SupabaseService.ensureUserInDefaultGroup(userId);
 
       // Save to local storage
       final prefs = await SharedPreferences.getInstance();

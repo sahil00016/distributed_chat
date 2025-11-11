@@ -38,6 +38,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
   }
 
   Future<void> _loadData() async {
+    setState(() => _isLoading = true);
+    await SupabaseService.ensureUserInDefaultGroup(widget.userId);
     await Future.wait([
       _loadGroups(),
       _loadUsers(),
@@ -231,43 +233,75 @@ class _ChatListScreenState extends State<ChatListScreen> {
               child: ListView(
                 children: [
                   // Groups Section
-                  if (_groups.isNotEmpty) ...[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'GROUPS',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey.shade600,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (context) => CreateGroupScreen(
+                                  currentUserId: widget.userId,
+                                  currentUsername: widget.username,
+                                ),
+                              ),
+                            ).then((_) => _loadData());
+                          },
+                          icon: const Icon(Icons.add, size: 16),
+                          label: const Text('New'),
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  if (_groups.isEmpty)
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                      child: Column(
                         children: [
+                          Icon(
+                            Icons.groups_2_outlined,
+                            size: 64,
+                            color: Colors.grey.shade400,
+                          ),
+                          const SizedBox(height: 12),
                           Text(
-                            'GROUPS',
+                            'No groups yet',
                             style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
                               color: Colors.grey.shade600,
-                              letterSpacing: 1.2,
                             ),
                           ),
-                          TextButton.icon(
-                            onPressed: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (context) => CreateGroupScreen(
-                                    currentUserId: widget.userId,
-                                    currentUsername: widget.username,
-                                  ),
-                                ),
-                              ).then((_) => _loadData());
-                            },
-                            icon: const Icon(Icons.add, size: 16),
-                            label: const Text('New'),
-                            style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(horizontal: 8),
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          const SizedBox(height: 6),
+                          Text(
+                            'Create a group to start collaborating!',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade500,
                             ),
                           ),
                         ],
                       ),
-                    ),
+                    )
+                  else
                     ...(_groups.map((group) {
                       final hasUnread = group.unreadCount > 0;
                       
@@ -350,7 +384,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
                         ),
                       );
                     })),
-                  ],
 
                   // Section Header
                   Padding(

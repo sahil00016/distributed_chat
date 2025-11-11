@@ -7,11 +7,13 @@ import 'package:flutter/foundation.dart';
 class SupabaseService {
   static final _client = Supabase.instance.client;
   
+  static const String defaultGroupId = '00000000-0000-0000-0000-000000000001';
+
   // Save group message
   static Future<void> saveGroupMessage({
     required String senderId,
     required String senderUsername,
-    required String groupId,
+    String? groupId,
     String? content,
     String? messageType,
     String? fileUrl,
@@ -23,7 +25,7 @@ class SupabaseService {
     await _client.from('group_messages').insert({
       'sender_id': senderId,
       'sender_username': senderUsername,
-      'group_id': groupId,
+      'group_id': groupId ?? defaultGroupId,
       'content': content,
       'message_type': messageType ?? 'text',
       'file_url': fileUrl,
@@ -292,6 +294,18 @@ class SupabaseService {
         .eq('receiver_id', receiverId)
         .eq('sender_id', senderId)
         .eq('is_read', false);
+  }
+
+  // Ensure user is in default group
+  static Future<void> ensureUserInDefaultGroup(String userId) async {
+    try {
+      await _client.from('group_members').upsert({
+        'group_id': defaultGroupId,
+        'user_id': userId,
+      });
+    } catch (e) {
+      debugPrint('Error ensuring default group membership: $e');
+    }
   }
 }
 

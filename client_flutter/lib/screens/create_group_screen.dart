@@ -90,7 +90,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (context) => ChatScreen(
-            socketService: null, // Not using socket for now
+            socketService: null, // sockets handled when joining via list
             chatType: ChatType.group,
             chatTitle: _groupNameController.text.trim(),
             groupId: groupId,

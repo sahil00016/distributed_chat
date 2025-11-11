@@ -163,7 +163,7 @@ class _ChatScreenState extends State<ChatScreen> {
         await SupabaseService.saveGroupMessage(
           senderId: _currentUserId ?? '',
           senderUsername: _currentUsername ?? '',
-          groupId: widget.groupId ?? '',
+          groupId: widget.groupId,
           content: content,
           messageType: 'text',
         );
@@ -213,7 +213,7 @@ class _ChatScreenState extends State<ChatScreen> {
           await SupabaseService.saveGroupMessage(
             senderId: _currentUserId ?? '',
             senderUsername: _currentUsername ?? '',
-            groupId: widget.groupId ?? '',
+            groupId: widget.groupId,
             messageType: messageType,
             fileUrl: fileUrl,
             fileName: fileName,
