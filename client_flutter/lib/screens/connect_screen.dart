@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/socket_service.dart';
 import '../config/app_config.dart';
 import 'chat_screen.dart';
+import 'chat_list_screen.dart';
 
 class ConnectScreen extends StatefulWidget {
   const ConnectScreen({super.key});
@@ -43,7 +44,11 @@ class _ConnectScreenState extends State<ConnectScreen> {
     if (success) {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (context) => ChatScreen(socketService: socketService),
+          builder: (context) => ChatScreen(
+            socketService: socketService,
+            chatType: ChatType.group,
+            chatTitle: 'Group Chat',
+          ),
         ),
       );
     } else {

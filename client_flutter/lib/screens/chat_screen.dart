@@ -71,9 +71,10 @@ class _ChatScreenState extends State<ChatScreen> {
       
       setState(() {
         _messages.clear();
-        _messages.addAll(history.map((msg) => 
-          msg..isMe == (msg.username == _currentUsername)
-        ));
+        _messages.addAll(history.map((msg) {
+          msg.isMe = (msg.username == _currentUsername);
+          return msg;
+        }));
         _isLoadingHistory = false;
       });
       
