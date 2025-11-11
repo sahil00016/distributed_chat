@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
 import 'dart:io';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/socket_service.dart';
+import '../services/supabase_service.dart';
 import '../models/message.dart';
 import '../models/user.dart';
 import '../widgets/message_bubble.dart';
@@ -33,11 +35,53 @@ class _ChatScreenState extends State<ChatScreen> {
   final List<Message> _messages = [];
   final List<User> _users = [];
   bool _isUploading = false;
+  bool _isLoadingHistory = true;
+  String? _currentUserId;
+  String? _currentUsername;
 
   @override
   void initState() {
     super.initState();
+    _loadUserData();
+    _loadChatHistory();
     _setupListeners();
+  }
+  
+  Future<void> _loadUserData() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _currentUserId = prefs.getString('userId');
+      _currentUsername = prefs.getString('username');
+    });
+  }
+  
+  Future<void> _loadChatHistory() async {
+    try {
+      List<Message> history;
+      
+      if (widget.chatType == ChatType.group) {
+        history = await SupabaseService.loadGroupMessages();
+      } else {
+        if (_currentUserId == null || widget.otherUserId == null) return;
+        history = await SupabaseService.loadPrivateMessages(
+          userId1: _currentUserId!,
+          userId2: widget.otherUserId!,
+        );
+      }
+      
+      setState(() {
+        _messages.clear();
+        _messages.addAll(history.map((msg) => 
+          msg..isMe == (msg.username == _currentUsername)
+        ));
+        _isLoadingHistory = false;
+      });
+      
+      _scrollToBottom();
+    } catch (e) {
+      debugPrint('Error loading history: $e');
+      setState(() => _isLoadingHistory = false);
+    }
   }
 
   void _setupListeners() {
@@ -75,30 +119,113 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  void _sendMessage() {
+  Future<void> _sendMessage() async {
     final content = _messageController.text.trim();
     if (content.isEmpty) return;
 
+    // Send via socket for real-time
     widget.socketService.sendChatMessage(content);
     _messageController.clear();
+    
+    // Save to Supabase for persistence
+    try {
+      if (widget.chatType == ChatType.group) {
+        await SupabaseService.saveGroupMessage(
+          senderId: _currentUserId ?? '',
+          senderUsername: _currentUsername ?? '',
+          content: content,
+          messageType: 'text',
+        );
+      } else {
+        await SupabaseService.savePrivateMessage(
+          senderId: _currentUserId ?? '',
+          receiverId: widget.otherUserId ?? '',
+          senderUsername: _currentUsername ?? '',
+          content: content,
+          messageType: 'text',
+        );
+      }
+    } catch (e) {
+      debugPrint('Error saving message: $e');
+    }
   }
 
   Future<void> _pickAndSendFile() async {
     try {
       setState(() => _isUploading = true);
 
-      final result = await FilePicker.platform.pickFiles();
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx'],
+      );
 
       if (result != null && result.files.single.path != null) {
         final file = File(result.files.single.path!);
+        final fileName = result.files.single.name;
+        final fileSize = result.files.single.size;
+        final mimeType = result.files.single.extension != null
+            ? _getMimeType(result.files.single.extension!)
+            : 'application/octet-stream';
+        
+        // Upload to Supabase Storage
+        final folder = SupabaseService.getFileCategory(mimeType);
+        final fileUrl = await SupabaseService.uploadFile(
+          file: file,
+          fileName: fileName,
+          folder: folder,
+        );
+        
+        final messageType = SupabaseService.isImageFile(mimeType) ? 'image' : 'document';
+        
+        // Save to Supabase database
+        if (widget.chatType == ChatType.group) {
+          await SupabaseService.saveGroupMessage(
+            senderId: _currentUserId ?? '',
+            senderUsername: _currentUsername ?? '',
+            messageType: messageType,
+            fileUrl: fileUrl,
+            fileName: fileName,
+            fileSize: fileSize,
+            fileType: mimeType,
+          );
+        } else {
+          await SupabaseService.savePrivateMessage(
+            senderId: _currentUserId ?? '',
+            receiverId: widget.otherUserId ?? '',
+            senderUsername: _currentUsername ?? '',
+            messageType: messageType,
+            fileUrl: fileUrl,
+            fileName: fileName,
+            fileSize: fileSize,
+            fileType: mimeType,
+          );
+        }
+        
+        // Also send via socket for real-time (optional)
         final fileData = await file.readAsBytes();
-
         await widget.socketService.sendFile(result.files.single.path!, fileData);
+        
+        // Add to local messages for immediate display
+        setState(() {
+          _messages.add(Message(
+            type: 'message',
+            username: _currentUsername,
+            timestamp: DateTime.now(),
+            isMe: true,
+            messageType: messageType,
+            fileUrl: fileUrl,
+            filename: fileName,
+            filesize: fileSize,
+            fileType: mimeType,
+          ));
+        });
+        
+        _scrollToBottom();
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('File sent: ${result.files.single.name}'),
+              content: Text('${messageType == 'image' ? 'Image' : 'File'} sent: $fileName'),
               backgroundColor: Colors.green,
             ),
           );
@@ -117,6 +244,34 @@ class _ChatScreenState extends State<ChatScreen> {
       if (mounted) {
         setState(() => _isUploading = false);
       }
+    }
+  }
+  
+  String _getMimeType(String extension) {
+    switch (extension.toLowerCase()) {
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'png':
+        return 'image/png';
+      case 'gif':
+        return 'image/gif';
+      case 'pdf':
+        return 'application/pdf';
+      case 'doc':
+        return 'application/msword';
+      case 'docx':
+        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      case 'ppt':
+        return 'application/vnd.ms-powerpoint';
+      case 'pptx':
+        return 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+      case 'xls':
+        return 'application/vnd.ms-excel';
+      case 'xlsx':
+        return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      default:
+        return 'application/octet-stream';
     }
   }
 
@@ -271,7 +426,18 @@ class _ChatScreenState extends State<ChatScreen> {
 
           // Messages list
           Expanded(
-            child: _messages.isEmpty
+            child: _isLoadingHistory
+                ? const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircularProgressIndicator(),
+                        SizedBox(height: 16),
+                        Text('Loading messages...'),
+                      ],
+                    ),
+                  )
+                : _messages.isEmpty
                 ? Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,

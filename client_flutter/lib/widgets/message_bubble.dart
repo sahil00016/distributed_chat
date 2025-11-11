@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/message.dart';
+import 'message_media_widget.dart';
 
 class MessageBubble extends StatelessWidget {
   final Message message;
@@ -94,15 +95,24 @@ class MessageBubble extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        message.content ?? '',
-                        style: TextStyle(
-                          fontSize: 15,
-                          color: message.isMe
-                              ? Theme.of(context).colorScheme.onPrimary
-                              : Theme.of(context).colorScheme.onSurfaceVariant,
+                      // Show image/document if present
+                      if (message.isImageMessage || message.isDocumentMessage) ...[
+                        MessageMediaWidget(message: message),
+                        if (message.content != null && message.content!.isNotEmpty)
+                          const SizedBox(height: 8),
+                      ],
+                      
+                      // Show text content
+                      if (message.content != null && message.content!.isNotEmpty)
+                        Text(
+                          message.content!,
+                          style: TextStyle(
+                            fontSize: 15,
+                            color: message.isMe
+                                ? Theme.of(context).colorScheme.onPrimary
+                                : Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
                         ),
-                      ),
                       const SizedBox(height: 4),
                       Row(
                         mainAxisSize: MainAxisSize.min,
