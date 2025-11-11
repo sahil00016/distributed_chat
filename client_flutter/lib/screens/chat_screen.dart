@@ -237,22 +237,7 @@ class _ChatScreenState extends State<ChatScreen> {
         final fileData = await file.readAsBytes();
         await widget.socketService?.sendFile(result.files.single.path!, fileData);
         
-        // Add to local messages for immediate display
-        setState(() {
-          _messages.add(Message(
-            type: 'message',
-            username: _currentUsername,
-            timestamp: DateTime.now(),
-            isMe: true,
-            messageType: messageType,
-            fileUrl: fileUrl,
-            filename: fileName,
-            filesize: fileSize,
-            fileType: mimeType,
-          ));
-        });
-        
-        _scrollToBottom();
+        // No need to append locally; stream will update
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

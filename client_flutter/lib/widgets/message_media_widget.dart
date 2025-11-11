@@ -25,7 +25,7 @@ class MessageMediaWidget extends StatelessWidget {
           MaterialPageRoute(
             builder: (context) => FullScreenImage(
               imageUrl: message.fileUrl!,
-              filename: message.filename ?? 'Image',
+              filename: 'Image',
             ),
           ),
         );
@@ -117,12 +117,9 @@ class MessageMediaWidget extends StatelessWidget {
 
   Widget _buildDocumentPreview(BuildContext context) {
     final icon = SupabaseService.getFileIcon(message.fileType);
-    final size = message.filesize != null
-        ? _formatFileSize(message.filesize!)
-        : 'Unknown size';
 
     return Container(
-      constraints: const BoxConstraints(maxWidth: 250),
+      constraints: const BoxConstraints(maxWidth: 220),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: message.isMe
@@ -137,7 +134,6 @@ class MessageMediaWidget extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // File icon
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -150,24 +146,21 @@ class MessageMediaWidget extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          // File info
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  message.filename ?? 'Document',
+                  message.isImageMessage ? 'Image' : 'Document',
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
                     color: message.isMe ? Colors.white : Colors.black87,
                   ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  size,
+                  'Tap to open',
                   style: TextStyle(
                     fontSize: 12,
                     color: message.isMe
@@ -178,16 +171,14 @@ class MessageMediaWidget extends StatelessWidget {
               ],
             ),
           ),
-          // Download button
           IconButton(
             icon: Icon(
-              Icons.download_rounded,
+              Icons.open_in_new_rounded,
               color: message.isMe ? Colors.white : Colors.blue,
+              size: 20,
             ),
             onPressed: () {
-              // Open URL in browser to download
-              // You can use url_launcher package for this
-              debugPrint('Download: ${message.fileUrl}');
+              debugPrint('Open file: ${message.fileUrl}');
             },
           ),
         ],
