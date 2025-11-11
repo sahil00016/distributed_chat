@@ -7,11 +7,21 @@ import '../models/message.dart';
 import '../models/user.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/user_list_drawer.dart';
+import 'chat_list_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   final SocketService socketService;
+  final ChatType chatType;
+  final String chatTitle;
+  final String? otherUserId;
 
-  const ChatScreen({super.key, required this.socketService});
+  const ChatScreen({
+    super.key,
+    required this.socketService,
+    required this.chatType,
+    required this.chatTitle,
+    this.otherUserId,
+  });
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -193,12 +203,14 @@ class _ChatScreenState extends State<ChatScreen> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Distributed Chat',
-              style: TextStyle(fontWeight: FontWeight.bold),
+            Text(
+              widget.chatTitle,
+              style: const TextStyle(fontWeight: FontWeight.bold),
             ),
             Text(
-              widget.socketService.username ?? '',
+              widget.chatType == ChatType.group
+                  ? '${_users.length} members'
+                  : 'Private Chat',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: Colors.white.withOpacity(0.9),
               ),
