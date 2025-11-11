@@ -1,10 +1,9 @@
 /// Application Configuration
 /// Change these values to match your server setup
 class AppConfig {
-  // Default server configuration
-  // CHANGE THIS to your PC's IP address for mobile demos
-  static const String defaultHost = '192.168.1.44'; // Your PC IP
-  static const int defaultPort = 5555;
+  // Default server configuration (Railway TCP proxy)
+  static const String defaultHost = 'maglev.proxy.rlwy.net';
+  static const int defaultPort = 50159;
   
   // App settings
   static const String appName = 'Distributed Chat';
