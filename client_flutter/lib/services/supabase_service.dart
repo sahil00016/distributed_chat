@@ -227,12 +227,18 @@ class SupabaseService {
   
   static Future<void> deleteGroupMessages(List<String> messageIds) async {
     if (messageIds.isEmpty) return;
-    await _client.from('group_messages').delete().in_('id', messageIds);
+    await _client
+        .from('group_messages')
+        .delete()
+        .inFilter('id', messageIds);
   }
   
   static Future<void> deletePrivateMessages(List<String> messageIds) async {
     if (messageIds.isEmpty) return;
-    await _client.from('private_messages').delete().in_('id', messageIds);
+    await _client
+        .from('private_messages')
+        .delete()
+        .inFilter('id', messageIds);
   }
   
   // Add member to group
